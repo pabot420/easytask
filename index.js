@@ -1,16 +1,112 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
-import colors from 'colors';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
 import moment from 'moment';
+import colors from 'colors';
+import { fileURLToPath } from 'url';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Define the path for the key file
+const keyFilePath = path.join(__dirname, '.keyfile');
+let encryptionKey;
+
+if (!fs.existsSync(keyFilePath)) {
+  // Generate a 32-byte encryption key (64-character hex string)
+  encryptionKey = crypto.randomBytes(32).toString('hex');
+  
+  // Save the generated key to .keyfile
+  fs.writeFileSync(keyFilePath, encryptionKey);
+  console.log(`Generated and saved new ENCRYPTION_KEY in .keyfile: ${encryptionKey}`);
+} else {
+  // Read the encryption key from .keyfile
+  encryptionKey = fs.readFileSync(keyFilePath, 'utf-8');
+  console.log(`Using existing ENCRYPTION_KEY from .keyfile: ${encryptionKey}`);
+}
+
+const ENCRYPTION_KEY = Buffer.from(encryptionKey, 'hex');
+
+const FIRST_RUN_FILE = path.join(__dirname, '.hidden_config');
+const ALGORITHM = 'aes-256-cbc';
+
+const encrypt = (text) => {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  const result = iv.toString('hex') + ':' + encrypted.toString('hex');
+  console.log('Encrypted:', result); // Debug
+  return result;
+};
+
+const decrypt = (text) => {
+  try {
+    const textParts = text.split(':');
+    if (textParts.length !== 2) {
+      throw new Error('Invalid encrypted data format');
+    }
+
+    const iv = Buffer.from(textParts[0], 'hex');
+    const encryptedText = Buffer.from(textParts[1], 'hex');
+    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+
+    console.log('Decrypting with IV:', iv.toString('hex')); // Debug
+    console.log('Encrypted text:', encryptedText.toString('hex')); // Debug
+
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+  } catch (error) {
+    console.error('Decryption error:', error.message);
+    process.exit(1);
+  }
+};
+
+const checkSystemTime = (lastRunDate) => {
+  const currentDate = moment();
+  if (moment(lastRunDate).isAfter(currentDate)) {
+    console.log(colors.red('Terdeteksi perubahan waktu sistem. Aplikasi dihentikan.'));
+    process.exit(1); 
+  }
+};
+
+const checkExpiry = () => {
+  let firstRunDate;
+
+  if (fs.existsSync(FIRST_RUN_FILE)) {
+    const encryptedDate = fs.readFileSync(FIRST_RUN_FILE, 'utf-8');
+    console.log('Reading encrypted date from file:', encryptedDate); // Debug
+    firstRunDate = decrypt(encryptedDate);
+  } else {
+    firstRunDate = moment().format('YYYY-MM-DD');
+    const encryptedDate = encrypt(firstRunDate);
+    fs.writeFileSync(FIRST_RUN_FILE, encryptedDate);
+    console.log('Creating new encrypted date:', encryptedDate); // Debug
+  }
+
+  const currentDate = moment();
+  const runDate = moment(firstRunDate, 'YYYY-MM-DD');
+  const diffDays = currentDate.diff(runDate, 'days');
+
+  checkSystemTime(runDate);
+
+  if (diffDays > 3) {
+    console.log(colors.red('Masa berlaku aplikasi sudah habis. Silakan hubungi pengembang.'));
+    process.exit(1);
+  }
+};
+
+checkExpiry();
+
+
 import axios from 'axios';
 import figlet from 'figlet';
 import chalk from 'chalk';
 import gradient from 'gradient-string';
-import ora from 'ora';
-import boxen from 'boxen';
 import cliProgress from 'cli-progress';
 import pkg from 'terminal-kit';
 const { terminal: terminalKit } = pkg;
@@ -31,9 +127,6 @@ import {
   startTask,
   claimDailyReward,
 } from './src/api.js';
-
-const __filename = new URL(import.meta.url).pathname;
-const __dirname = path.dirname(__filename);
 
 const TOKEN_FILE_PATH = path.join(__dirname, 'accessTokens.txt');
 
@@ -323,20 +416,22 @@ const processAccount = async (queryId, taskBar) => {
   }
 
   try {
+    const maxRetries = 3;
+
     displayTaskProgress(taskBar, 'Claiming Farm');
-    await claimFarmRewardSafely(token);
+    await retryAction(() => claimFarmRewardSafely(token), maxRetries);
     
     displayTaskProgress(taskBar, 'Farming Session');
-    await startFarmingSessionSafely(token);
+    await retryAction(() => startFarmingSessionSafely(token), maxRetries);
 
     displayTaskProgress(taskBar, 'Auto Tasks');
-    await completeTasksSafely(token);
+    await retryAction(() => completeTasksSafely(token), maxRetries);
     
     displayTaskProgress(taskBar, 'Daily Reward');
-    await claimDailyRewardSafely(token);
+    await retryAction(() => claimDailyRewardSafely(token), maxRetries);
     
     displayTaskProgress(taskBar, 'Game Points');
-    await claimGamePointsSafely(token); 
+    await retryAction(() => claimGamePointsSafely(token), maxRetries); 
 
     return { success: true, queryId };
   } catch (error) {
@@ -363,6 +458,14 @@ const runScriptForAllAccounts = async () => {
 
   multibar.stop();
   await delay(1000);
+
+  // Output failed accounts for further investigation
+  const failedAccounts = results.filter(r => !r.success);
+  if (failedAccounts.length > 0) {
+    console.log(chalk.red(`✖ ${failedAccounts.length} accounts failed:`));
+    failedAccounts.forEach(acc => console.log(`- ${acc.queryId}: ${acc.error}`));
+  }
+
   displaySummary(results);
 };
 
