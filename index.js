@@ -11,19 +11,17 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Define the path for the key file
 const keyFilePath = path.join(__dirname, '.keyfile');
 let encryptionKey;
 
 if (!fs.existsSync(keyFilePath)) {
-  // Generate a 32-byte encryption key (64-character hex string)
+
   encryptionKey = crypto.randomBytes(32).toString('hex');
   
-  // Save the generated key to .keyfile
   fs.writeFileSync(keyFilePath, encryptionKey);
   console.log(`Generated and saved new ENCRYPTION_KEY in .keyfile: ${encryptionKey}`);
 } else {
-  // Read the encryption key from .keyfile
+
   encryptionKey = fs.readFileSync(keyFilePath, 'utf-8');
   console.log(`Using existing ENCRYPTION_KEY from .keyfile: ${encryptionKey}`);
 }
@@ -266,15 +264,15 @@ const handleApiError = async (error) => {
 const performActionWithRetry = async (action, token, maxRetries = 3) => {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      return await action(token);  // Pass token to action
+      return await action(token);  
     } catch (error) {
       if (error.response && error.response.status === 401) {
         console.error('🚨 Token expired or unauthorized. Please check your token.'.red);
-        break;  // Stop retrying if token is unauthorized
+        break; 
       }
-      if (i === maxRetries - 1) throw error;  // If max retries reached, throw error
+      if (i === maxRetries - 1) throw error;  
       console.log(`Retrying... (${i + 1}/${maxRetries})`.yellow);
-      await delay(5000);  // Tambahkan delay antar percobaan
+      await delay(5000); 
     }
   }
 };
@@ -285,8 +283,8 @@ const retryAction = async (action, maxRetries = 3) => {
       return await action();
     } catch (error) {
       console.log(`❌ Error: ${error.message} (Retry ${i + 1}/${maxRetries})`.yellow);
-      if (i === maxRetries - 1) throw error; // Stop retrying if max retries reached
-      await delay(3000); // Delay between retries
+      if (i === maxRetries - 1) throw error;
+      await delay(3000); 
     }
   }
 };
@@ -354,7 +352,7 @@ const claimGamePointsSafely = async (token) => {
   console.log('🎮 Starting game points claiming...'.cyan);
 
   try {
-    const balanceResponse = await getBalance(token); // Get the balance to determine the available game chances
+    const balanceResponse = await getBalance(token); 
     const gameChances = balanceResponse.playPasses;
     console.log(`📊 You have ${gameChances} game chances available.`.cyan);
 
@@ -364,9 +362,8 @@ const claimGamePointsSafely = async (token) => {
       tasks.push(playAndClaimGame(token, randomPoints, i + 1));
     }
 
-    let results = await Promise.all(tasks); // Wait for all games to complete
+    let results = await Promise.all(tasks); 
 
-    // Display results
     results.forEach((result, index) => {
       console.log(`Result of game ${index + 1}:`, result);
     });
@@ -377,7 +374,6 @@ const claimGamePointsSafely = async (token) => {
   }
 };
 
-// Function to play and claim points for each game with retry logic
 const playAndClaimGame = async (token, points, iteration) => {
   console.log(`🆔 Starting game ${iteration}...`.cyan);
 
@@ -459,7 +455,6 @@ const runScriptForAllAccounts = async () => {
   multibar.stop();
   await delay(1000);
 
-  // Output failed accounts for further investigation
   const failedAccounts = results.filter(r => !r.success);
   if (failedAccounts.length > 0) {
     console.log(chalk.red(`✖ ${failedAccounts.length} accounts failed:`));
@@ -469,5 +464,4 @@ const runScriptForAllAccounts = async () => {
   displaySummary(results);
 };
 
-// Start the process
 runScriptForAllAccounts();
