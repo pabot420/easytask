@@ -7,7 +7,7 @@ Automates interactions with the Blum airdrop platform, including claiming reward
 - Claim farm rewards
 - Start and manage farming sessions
 - Complete and claim rewards for tasks
-- Play all games only 32 second
+- AutoPlay all games only 32 second
 - Display progress and summary reports in the terminal
 
 ## Getting Started
