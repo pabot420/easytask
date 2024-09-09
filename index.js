@@ -5,102 +5,8 @@ import dotenv from 'dotenv';
 import moment from 'moment';
 import colors from 'colors';
 import { fileURLToPath } from 'url';
-
-dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const keyFilePath = path.join(__dirname, '.keyfile');
-let encryptionKey;
-
-if (!fs.existsSync(keyFilePath)) {
-
-  encryptionKey = crypto.randomBytes(32).toString('hex');
-  
-  fs.writeFileSync(keyFilePath, encryptionKey);
-  console.log(`Generated and saved new ENCRYPTION_KEY in .keyfile: ${encryptionKey}`);
-} else {
-
-  encryptionKey = fs.readFileSync(keyFilePath, 'utf-8');
-  console.log(`Using existing ENCRYPTION_KEY from .keyfile: ${encryptionKey}`);
-}
-
-const ENCRYPTION_KEY = Buffer.from(encryptionKey, 'hex');
-
-const FIRST_RUN_FILE = path.join(__dirname, '.hidden_config');
-const ALGORITHM = 'aes-256-cbc';
-
-const encrypt = (text) => {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-  let encrypted = cipher.update(text);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-  const result = iv.toString('hex') + ':' + encrypted.toString('hex');
-  console.log('Encrypted:', result); // Debug
-  return result;
-};
-
-const decrypt = (text) => {
-  try {
-    const textParts = text.split(':');
-    if (textParts.length !== 2) {
-      throw new Error('Invalid encrypted data format');
-    }
-
-    const iv = Buffer.from(textParts[0], 'hex');
-    const encryptedText = Buffer.from(textParts[1], 'hex');
-    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-
-    console.log('Decrypting with IV:', iv.toString('hex')); // Debug
-    console.log('Encrypted text:', encryptedText.toString('hex')); // Debug
-
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
-  } catch (error) {
-    console.error('Decryption error:', error.message);
-    process.exit(1);
-  }
-};
-
-const checkSystemTime = (lastRunDate) => {
-  const currentDate = moment();
-  if (moment(lastRunDate).isAfter(currentDate)) {
-    console.log(colors.red('Terdeteksi perubahan waktu sistem. Aplikasi dihentikan.'));
-    process.exit(1); 
-  }
-};
-
-const checkExpiry = () => {
-  let firstRunDate;
-
-  if (fs.existsSync(FIRST_RUN_FILE)) {
-    const encryptedDate = fs.readFileSync(FIRST_RUN_FILE, 'utf-8');
-    console.log('Reading encrypted date from file:', encryptedDate); // Debug
-    firstRunDate = decrypt(encryptedDate);
-  } else {
-    firstRunDate = moment().format('YYYY-MM-DD');
-    const encryptedDate = encrypt(firstRunDate);
-    fs.writeFileSync(FIRST_RUN_FILE, encryptedDate);
-    console.log('Creating new encrypted date:', encryptedDate); // Debug
-  }
-
-  const currentDate = moment();
-  const runDate = moment(firstRunDate, 'YYYY-MM-DD');
-  const diffDays = currentDate.diff(runDate, 'days');
-
-  checkSystemTime(runDate);
-
-  if (diffDays > 3) {
-    console.log(colors.red('Masa berlaku aplikasi sudah habis. Silakan hubungi pengembang.'));
-    process.exit(1);
-  }
-};
-
-checkExpiry();
-
-
+import os from 'os';
+import { execSync } from 'child_process';
 import axios from 'axios';
 import figlet from 'figlet';
 import chalk from 'chalk';
@@ -108,6 +14,137 @@ import gradient from 'gradient-string';
 import cliProgress from 'cli-progress';
 import pkg from 'terminal-kit';
 const { terminal: terminalKit } = pkg;
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Advanced Secure Expiration Mechanism
+const ENCRYPTION_KEY = crypto.scryptSync(os.hostname() + os.userInfo().username, 'salt', 32);
+const ALGORITHM = 'aes-256-gcm';
+
+// White-Box Cryptography Concept
+const whiteBoxAES = (input, key) => {
+    const obfuscatedOperation = (byte, index) => {
+        let result = byte;
+        for (let i = 0; i < key.length; i++) {
+            result ^= key[(index + i) % key.length];
+            result = (result << 1) | (result >>> 7); // Rotate left
+        }
+        return result;
+    };
+
+    return Buffer.from(input).map(obfuscatedOperation);
+};
+
+const secureEncrypt = (text) => {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const tag = cipher.getAuthTag();
+    return whiteBoxAES(Buffer.from(iv.toString('hex') + ':' + encrypted + ':' + tag.toString('hex'), 'utf8'), ENCRYPTION_KEY).toString('base64');
+};
+
+const secureDecrypt = (encryptedText) => {
+    const deobfuscated = whiteBoxAES(Buffer.from(encryptedText, 'base64'), ENCRYPTION_KEY).toString('utf8');
+    const [ivHex, encryptedHex, tagHex] = deobfuscated.split(':');
+    const iv = Buffer.from(ivHex, 'hex');
+    const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
+    const tag = Buffer.from(tagHex, 'hex');
+    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    decipher.setAuthTag(tag);
+    let decrypted = decipher.update(encryptedBuffer, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+};
+
+const getHardwareFingerprint = () => {
+    let fingerprint = '';
+    
+    try {
+        if (process.platform === 'win32') {
+            fingerprint = execSync('wmic csproduct get uuid').toString().split('\n')[1].trim();
+        } else if (process.platform === 'darwin') {
+            fingerprint = execSync('ioreg -rd1 -c IOPlatformExpertDevice | awk \'/IOPlatformUUID/ { split($0, line, "\\""); printf("%s\\n", line[4]); }\'').toString().trim();
+        } else if (process.platform === 'linux') {
+            fingerprint = execSync('cat /var/lib/dbus/machine-id || cat /etc/machine-id').toString().trim();
+        }
+    } catch (error) {
+        console.error('Error getting hardware fingerprint:', error);
+    }
+    
+    return crypto.createHash('sha256').update(fingerprint).digest('hex');
+};
+
+const SECURE_STORAGE_FILE = path.join(__dirname, '.secure_storage');
+
+const readSecureStorage = () => {
+    if (!fs.existsSync(SECURE_STORAGE_FILE)) {
+        return null;
+    }
+    const encryptedData = fs.readFileSync(SECURE_STORAGE_FILE, 'utf8');
+    try {
+        return JSON.parse(secureDecrypt(encryptedData));
+    } catch (error) {
+        console.error('Error reading secure storage:', error);
+        return null;
+    }
+};
+
+const writeSecureStorage = (data) => {
+    const encryptedData = secureEncrypt(JSON.stringify(data));
+    fs.writeFileSync(SECURE_STORAGE_FILE, encryptedData);
+};
+
+const EXPIRATION_DAYS = 3;
+
+// Anti-Tampering and Debugger Detection
+const detectDebugger = () => {
+    const startTime = new Date();
+    debugger;
+    const endTime = new Date();
+    return endTime - startTime > 100;
+};
+
+const checkIntegrity = () => {
+    const expectedChecksum = "your-pre-calculated-checksum"; // You need to calculate this beforehand
+    const actualChecksum = crypto.createHash('sha256').update(fs.readFileSync(__filename)).digest('hex');
+    return expectedChecksum === actualChecksum;
+};
+
+const checkExpiration = () => {
+    if (detectDebugger() || !checkIntegrity()) {
+        console.log(colors.red('Terdeteksi upaya peretasan. Aplikasi dihentikan.'));
+        process.exit(1);
+    }
+
+    const currentFingerprint = getHardwareFingerprint();
+    const storage = readSecureStorage();
+
+    if (!storage || storage.fingerprint !== currentFingerprint) {
+        const newStorage = {
+            fingerprint: currentFingerprint,
+            firstRunDate: Date.now(),
+            runCount: 0
+        };
+        writeSecureStorage(newStorage);
+        return true;
+    }
+
+    storage.runCount++;
+    writeSecureStorage(storage);
+
+    const daysSinceFirstRun = (Date.now() - storage.firstRunDate) / (1000 * 60 * 60 * 24);
+    
+    if (daysSinceFirstRun > EXPIRATION_DAYS) {
+        console.log(colors.red('Masa berlaku aplikasi sudah habis. Silakan hubungi pengembang.'));
+        return false;
+    }
+
+    return true;
+};
 
 import { delay } from './src/utils.js'; // Use ES module syntax for importing
 
