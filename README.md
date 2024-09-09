@@ -1,3 +1,6 @@
+# ITS NOT FINISH YET
+
+
 # Blum Airdrop Bot
 
 Automates interactions with the Blum airdrop platform, including claiming rewards, managing farming sessions, completing tasks, and playing games.
