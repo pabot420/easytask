@@ -392,7 +392,7 @@ const claimGamePointsSafely = async (token) => {
 
     let tasks = [];
     for (let i = 0; i < gameChances; i++) {
-      const randomPoints = Math.floor(Math.random() * (275 - 150 + 1)) + 150; // Random points between 150 and 275
+      const randomPoints = Math.floor(Math.random() * (275 - 180 + 1)) + 150; // Random points between 150 and 275
       tasks.push(playAndClaimGame(token, randomPoints, i + 1));
     }
 
