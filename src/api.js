@@ -6,8 +6,8 @@ export async function getToken(queryId) {
       url: 'https://user-domain.blum.codes/api/v1/auth/provider/PROVIDER_TELEGRAM_MINI_APP',
       method: 'POST',
       data: {
-        query: queryId, // Use the dynamic queryId passed from index.js
-        referralToken: 'vTHusRz4j0', // Ensure this is the correct referral token
+        query: queryId,
+        referralToken: 'vTHusRz4j0', 
       },
     });
 
