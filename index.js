@@ -118,35 +118,40 @@ const checkIntegrity = () => {
 };
 
 const checkExpiration = () => {
-    if (detectDebugger() || !checkIntegrity()) {
-        console.log(colors.red('Terdeteksi upaya peretasan. Aplikasi dihentikan.'));
-        process.exit(1);
-    }
+    try {
+        if (detectDebugger() || !checkIntegrity()) {
+            console.log(colors.red('Terdeteksi upaya peretasan. Aplikasi dihentikan.'));
+            process.exit(1);
+        }
 
-    const currentFingerprint = getHardwareFingerprint();
-    const storage = readSecureStorage();
+        const currentFingerprint = getHardwareFingerprint();
+        const storage = readSecureStorage();
 
-    if (!storage || storage.fingerprint !== currentFingerprint) {
-        const newStorage = {
-            fingerprint: currentFingerprint,
-            firstRunDate: Date.now(),
-            runCount: 0
-        };
-        writeSecureStorage(newStorage);
+        if (!storage || storage.fingerprint !== currentFingerprint) {
+            const newStorage = {
+                fingerprint: currentFingerprint,
+                firstRunDate: Date.now(),
+                runCount: 0
+            };
+            writeSecureStorage(newStorage);
+            return true; 
+        }
+
+        storage.runCount++;
+        writeSecureStorage(storage);
+
+        const daysSinceFirstRun = (Date.now() - storage.firstRunDate) / (1000 * 60 * 60 * 24);
+
+        if (daysSinceFirstRun > EXPIRATION_DAYS) {
+            console.log(colors.red('Masa berlaku aplikasi sudah habis. Silakan hubungi pengembang.'));
+            return false;
+        }
+
         return true;
+    } catch (error) {
+        console.error(colors.red(`Error checking expiration: ${error.message}`));
+        process.exit(1); 
     }
-
-    storage.runCount++;
-    writeSecureStorage(storage);
-
-    const daysSinceFirstRun = (Date.now() - storage.firstRunDate) / (1000 * 60 * 60 * 24);
-    
-    if (daysSinceFirstRun > EXPIRATION_DAYS) {
-        console.log(colors.red('Masa berlaku aplikasi sudah habis. Silakan hubungi pengembang.'));
-        return false;
-    }
-
-    return true;
 };
 
 import { delay } from './src/utils.js'; 
