@@ -2,7 +2,7 @@
 
 Automates interactions with the Blum airdrop platform, including claiming rewards, managing farming sessions, completing tasks, and playing games.
 
-## Features ALL IN ONE
+## Features ALL IN ONE and ```Multi Account```
 
 - Claim farm rewards
 - Start and manage farming sessions
