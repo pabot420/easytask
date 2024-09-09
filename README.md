@@ -22,7 +22,7 @@ Automates interactions with the Blum airdrop platform, including claiming reward
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/ada682/blum-airdrop-bot.git
+   git clone https://github.com/ada682/blumAllinone.git
 
 2. Navigate to the project directory:
 
