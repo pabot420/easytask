@@ -106,7 +106,7 @@ const detectDebugger = () => {
 };
 
 const checkIntegrity = () => {
-    const expectedChecksum = "your-pre-calculated-checksum"; // You need to calculate this beforehand
+    const expectedChecksum = "pre-calculated-checksum";
     const actualChecksum = crypto.createHash('sha256').update(fs.readFileSync(__filename)).digest('hex');
     return expectedChecksum === actualChecksum;
 };
@@ -143,7 +143,7 @@ const checkExpiration = () => {
     return true;
 };
 
-import { delay } from './src/utils.js'; // Use ES module syntax for importing
+import { delay } from './src/utils.js'; 
 
 import {
   getToken,
