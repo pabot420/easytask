@@ -180,7 +180,7 @@ import {
   claimGamePoints,
   startTask,
   claimDailyReward,
-} from './src/api.js';
+} from './src/index.js';
 
 const TOKEN_FILE_PATH = path.join(__dirname, 'accessTokens.txt');
 
