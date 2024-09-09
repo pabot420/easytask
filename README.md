@@ -26,7 +26,7 @@ Automates interactions with the Blum airdrop platform, including claiming reward
 
 2. Navigate to the project directory:
 
-   cd blum-airdrop-bot
+   cd blumAllinone
 
 3. Install dependencies:
 
