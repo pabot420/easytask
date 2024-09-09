@@ -80,6 +80,7 @@ const SECURE_STORAGE_FILE = path.join(__dirname, '.secure_storage');
 
 const readSecureStorage = () => {
     if (!fs.existsSync(SECURE_STORAGE_FILE)) {
+        console.log(`Secure storage file does not exist at ${SECURE_STORAGE_FILE}`);
         return null;
     }
     const encryptedData = fs.readFileSync(SECURE_STORAGE_FILE, 'utf8');
@@ -92,8 +93,13 @@ const readSecureStorage = () => {
 };
 
 const writeSecureStorage = (data) => {
-    const encryptedData = secureEncrypt(JSON.stringify(data));
-    fs.writeFileSync(SECURE_STORAGE_FILE, encryptedData);
+    try {
+        const encryptedData = secureEncrypt(JSON.stringify(data));
+        fs.writeFileSync(SECURE_STORAGE_FILE, encryptedData);
+        console.log(`Secure storage file written at ${SECURE_STORAGE_FILE}`);
+    } catch (error) {
+        console.error('Error writing secure storage:', error);
+    }
 };
 
 const EXPIRATION_DAYS = 3;
