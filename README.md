@@ -1,4 +1,4 @@
-# ITS NOT FINISH YET
+# ITS NOT FINAL BOT!, WAIT FOR THE FINAL!
 
 
 # Blum Airdrop Bot
