@@ -1,171 +1,21 @@
-import crypto from 'crypto';
+import dotenv from 'dotenv';
+dotenv.config();
+
+import colors from 'colors';
 import fs from 'fs';
 import path from 'path';
-import dotenv from 'dotenv';
 import moment from 'moment';
-import colors from 'colors';
-import { fileURLToPath } from 'url';
-import os from 'os';
-import { execSync } from 'child_process';
 import axios from 'axios';
 import figlet from 'figlet';
 import chalk from 'chalk';
 import gradient from 'gradient-string';
+import ora from 'ora';
+import boxen from 'boxen';
 import cliProgress from 'cli-progress';
 import pkg from 'terminal-kit';
 const { terminal: terminalKit } = pkg;
 
-const configPath = path.join(__dirname, 'config.json');
-const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-
-const securityCodePath = config.securityCodePath;
-
-import(securityCodePath).then(module => {
-  const { checkExpiration } = module;
-
-  if (!checkExpiration()) {
-    console.log('Aplikasi tidak valid atau telah kedaluwarsa.');
-    process.exit(1);
-  }
-
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-
-const ENCRYPTION_KEY = crypto.scryptSync(os.hostname() + os.userInfo().username, 'salt', 32);
-const ALGORITHM = 'aes-256-gcm';
-
-const whiteBoxAES = (input, key) => {
-    const obfuscatedOperation = (byte, index) => {
-        let result = byte;
-        for (let i = 0; i < key.length; i++) {
-            result ^= key[(index + i) % key.length];
-            result = (result << 1) | (result >>> 7); // Rotate left
-        }
-        return result;
-    };
-
-    return Buffer.from(input).map(obfuscatedOperation);
-};
-
-const secureEncrypt = (text) => {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const tag = cipher.getAuthTag();
-    return whiteBoxAES(Buffer.from(iv.toString('hex') + ':' + encrypted + ':' + tag.toString('hex'), 'utf8'), ENCRYPTION_KEY).toString('base64');
-};
-
-const secureDecrypt = (encryptedText) => {
-    const deobfuscated = whiteBoxAES(Buffer.from(encryptedText, 'base64'), ENCRYPTION_KEY).toString('utf8');
-    const [ivHex, encryptedHex, tagHex] = deobfuscated.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
-    const tag = Buffer.from(tagHex, 'hex');
-    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-    decipher.setAuthTag(tag);
-    let decrypted = decipher.update(encryptedBuffer, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-};
-
-const getHardwareFingerprint = () => {
-    let fingerprint = '';
-    
-    try {
-        if (process.platform === 'win32') {
-            fingerprint = execSync('wmic csproduct get uuid').toString().split('\n')[1].trim();
-        } else if (process.platform === 'darwin') {
-            fingerprint = execSync('ioreg -rd1 -c IOPlatformExpertDevice | awk \'/IOPlatformUUID/ { split($0, line, "\\""); printf("%s\\n", line[4]); }\'').toString().trim();
-        } else if (process.platform === 'linux') {
-            fingerprint = execSync('cat /var/lib/dbus/machine-id || cat /etc/machine-id').toString().trim();
-        }
-    } catch (error) {
-        console.error('Error getting hardware fingerprint:', error);
-    }
-    
-    return crypto.createHash('sha256').update(fingerprint).digest('hex');
-};
-
-const SECURE_STORAGE_FILE = path.join(__dirname, '.secure_storage');
-
-const readSecureStorage = () => {
-    if (!fs.existsSync(SECURE_STORAGE_FILE)) {
-        console.log(`Secure storage file does not exist at ${SECURE_STORAGE_FILE}`);
-        return null;
-    }
-    const encryptedData = fs.readFileSync(SECURE_STORAGE_FILE, 'utf8');
-    try {
-        return JSON.parse(secureDecrypt(encryptedData));
-    } catch (error) {
-        console.error('Error reading secure storage:', error);
-        return null;
-    }
-};
-
-const writeSecureStorage = (data) => {
-    try {
-        const encryptedData = secureEncrypt(JSON.stringify(data));
-        fs.writeFileSync(SECURE_STORAGE_FILE, encryptedData);
-        console.log(`Secure storage file written at ${SECURE_STORAGE_FILE}`);
-    } catch (error) {
-        console.error('Error writing secure storage:', error);
-    }
-};
-
-const EXPIRATION_DAYS = 3;
-
-const detectDebugger = () => {
-    const startTime = new Date();
-    debugger;
-    const endTime = new Date();
-    return endTime - startTime > 100;
-};
-
-const checkIntegrity = () => {
-    const expectedChecksum = "pre-calculated-checksum";
-    const actualChecksum = crypto.createHash('sha256').update(fs.readFileSync(__filename)).digest('hex');
-    return expectedChecksum === actualChecksum;
-};
-
-const checkExpiration = () => {
-    try {
-        if (detectDebugger() || !checkIntegrity()) {
-            console.log(colors.red('Terdeteksi upaya peretasan. Aplikasi dihentikan.'));
-            process.exit(1);
-        }
-
-        const currentFingerprint = getHardwareFingerprint();
-        const storage = readSecureStorage();
-
-        if (!storage || storage.fingerprint !== currentFingerprint) {
-            const newStorage = {
-                fingerprint: currentFingerprint,
-                firstRunDate: Date.now(),
-                runCount: 0
-            };
-            writeSecureStorage(newStorage);
-            return true; 
-        }
-
-        storage.runCount++;
-        writeSecureStorage(storage);
-
-        const daysSinceFirstRun = (Date.now() - storage.firstRunDate) / (1000 * 60 * 60 * 24);
-
-        if (daysSinceFirstRun > EXPIRATION_DAYS) {
-            console.log(colors.red('Masa berlaku aplikasi sudah habis. Silakan hubungi pengembang.'));
-            return false;
-        }
-
-        return true;
-    } catch (error) {
-        console.error(colors.red(`Error checking expiration: ${error.message}`));
-        process.exit(1); 
-    }
-};
-
-import { delay } from './src/utils.js'; 
+import { delay } from './src/utils.js'; // Use ES module syntax for importing
 
 import {
   getToken,
@@ -182,14 +32,16 @@ import {
   claimDailyReward,
 } from './src/index.js';
 
-const TOKEN_FILE_PATH = path.join(__dirname, 'accessTokens.txt');
+const __filename = new URL(import.meta.url).pathname;
+const __dirname = path.dirname(__filename);
+
+const TOKEN_FILE_PATH = './path/to/accessTokens.txt';
 
 const accountTokens = [
   process.env.QUERY_ID1,
   process.env.QUERY_ID2,
   process.env.QUERY_ID3,
-  process.env.QUERY_ID4,
-  process.env.QUERY_ID5  
+  process.env.QUERY_ID4
 ];
 
 const displayHeader = () => {
@@ -320,15 +172,15 @@ const handleApiError = async (error) => {
 const performActionWithRetry = async (action, token, maxRetries = 3) => {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      return await action(token);  
+      return await action(token);  // Pass token to action
     } catch (error) {
       if (error.response && error.response.status === 401) {
         console.error('🚨 Token expired or unauthorized. Please check your token.'.red);
-        break; 
+        break;  // Stop retrying if token is unauthorized
       }
-      if (i === maxRetries - 1) throw error;  
+      if (i === maxRetries - 1) throw error;  // If max retries reached, throw error
       console.log(`Retrying... (${i + 1}/${maxRetries})`.yellow);
-      await delay(5000); 
+      await delay(5000);  // Tambahkan delay antar percobaan
     }
   }
 };
@@ -339,8 +191,8 @@ const retryAction = async (action, maxRetries = 3) => {
       return await action();
     } catch (error) {
       console.log(`❌ Error: ${error.message} (Retry ${i + 1}/${maxRetries})`.yellow);
-      if (i === maxRetries - 1) throw error;
-      await delay(3000); 
+      if (i === maxRetries - 1) throw error; // Stop retrying if max retries reached
+      await delay(3000); // Delay between retries
     }
   }
 };
@@ -408,18 +260,19 @@ const claimGamePointsSafely = async (token) => {
   console.log('🎮 Starting game points claiming...'.cyan);
 
   try {
-    const balanceResponse = await getBalance(token); 
+    const balanceResponse = await getBalance(token); // Get the balance to determine the available game chances
     const gameChances = balanceResponse.playPasses;
     console.log(`📊 You have ${gameChances} game chances available.`.cyan);
 
     let tasks = [];
     for (let i = 0; i < gameChances; i++) {
-      const randomPoints = Math.floor(Math.random() * (275 - 180 + 1)) + 150; // Random points between 150 and 275
+      const randomPoints = Math.floor(Math.random() * (275 - 150 + 1)) + 150; // Random points between 150 and 275
       tasks.push(playAndClaimGame(token, randomPoints, i + 1));
     }
 
-    let results = await Promise.all(tasks); 
+    let results = await Promise.all(tasks); // Wait for all games to complete
 
+    // Display results
     results.forEach((result, index) => {
       console.log(`Result of game ${index + 1}:`, result);
     });
@@ -430,6 +283,7 @@ const claimGamePointsSafely = async (token) => {
   }
 };
 
+// Function to play and claim points for each game with retry logic
 const playAndClaimGame = async (token, points, iteration) => {
   console.log(`🆔 Starting game ${iteration}...`.cyan);
 
@@ -460,7 +314,7 @@ const playAndClaimGame = async (token, points, iteration) => {
 };
 
 const processAccount = async (queryId, taskBar) => {
-  let token = await getToken(queryId); // Assuming getToken is an async function
+  let token = await getTokenAndSave(queryId);
 
   if (!token) {
     console.error(chalk.red('✖ [ERROR] Token is undefined! Skipping this account.'));
@@ -468,22 +322,20 @@ const processAccount = async (queryId, taskBar) => {
   }
 
   try {
-    const maxRetries = 3;
-
     displayTaskProgress(taskBar, 'Claiming Farm');
-    await retryAction(() => claimFarmReward(token), maxRetries);
+    await claimFarmRewardSafely(token);
     
     displayTaskProgress(taskBar, 'Farming Session');
-    await retryAction(() => startFarmingSession(token), maxRetries);
+    await startFarmingSessionSafely(token);
 
     displayTaskProgress(taskBar, 'Auto Tasks');
-    await retryAction(() => completeTasks(token), maxRetries);
+    await completeTasksSafely(token);
     
     displayTaskProgress(taskBar, 'Daily Reward');
-    await retryAction(() => claimDailyReward(token), maxRetries);
+    await claimDailyRewardSafely(token);
     
     displayTaskProgress(taskBar, 'Game Points');
-    await retryAction(() => claimGamePoints(token), maxRetries); 
+    await claimGamePointsSafely(token); 
 
     return { success: true, queryId };
   } catch (error) {
@@ -493,12 +345,6 @@ const processAccount = async (queryId, taskBar) => {
 };
 
 const runScriptForAllAccounts = async () => {
-  // validasi cek
-  if (!checkExpiration()) {
-    console.log(chalk.red('Aplikasi tidak valid atau masa berlaku telah habis.'));
-    process.exit(1);
-  }
-
   displayHeader();
 
   const results = [];
@@ -516,14 +362,8 @@ const runScriptForAllAccounts = async () => {
 
   multibar.stop();
   await delay(1000);
-
-  const failedAccounts = results.filter(r => !r.success);
-  if (failedAccounts.length > 0) {
-    console.log(chalk.red(`✖ ${failedAccounts.length} accounts failed:`));
-    failedAccounts.forEach(acc => console.log(`- ${acc.queryId}: ${acc.error}`));
-  }
-
   displaySummary(results);
 };
 
+// Start the process
 runScriptForAllAccounts();
