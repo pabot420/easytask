@@ -15,10 +15,21 @@ import cliProgress from 'cli-progress';
 import pkg from 'terminal-kit';
 const { terminal: terminalKit } = pkg;
 
-dotenv.config();
+const configPath = path.join(__dirname, 'config.json');
+const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const securityCodePath = config.securityCodePath;
+
+import(securityCodePath).then(module => {
+  const { checkExpiration } = module;
+
+  if (!checkExpiration()) {
+    console.log('Aplikasi tidak valid atau telah kedaluwarsa.');
+    process.exit(1);
+  }
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
 
 const ENCRYPTION_KEY = crypto.scryptSync(os.hostname() + os.userInfo().username, 'salt', 32);
 const ALGORITHM = 'aes-256-gcm';
@@ -482,7 +493,7 @@ const processAccount = async (queryId, taskBar) => {
 };
 
 const runScriptForAllAccounts = async () => {
-
+  // validasi cek
   if (!checkExpiration()) {
     console.log(chalk.red('Aplikasi tidak valid atau masa berlaku telah habis.'));
     process.exit(1);
