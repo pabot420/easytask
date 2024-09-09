@@ -1,7 +1,7 @@
 {
   "name": "blum-airdrop-bot",
   "version": "1.0.0",
-  "description": "Automates interactions with the Blum airdrop platform, including claiming rewards, managing farming sessions, completing tasks, and playing games.",
+  "description": "Multi Account Blum airdrop, including claiming rewards, completing tasks, and playing games, and more.",
   "main": "index.js",
   "type": "module",
   "scripts": {
