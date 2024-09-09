@@ -20,11 +20,9 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Advanced Secure Expiration Mechanism
 const ENCRYPTION_KEY = crypto.scryptSync(os.hostname() + os.userInfo().username, 'salt', 32);
 const ALGORITHM = 'aes-256-gcm';
 
-// White-Box Cryptography Concept
 const whiteBoxAES = (input, key) => {
     const obfuscatedOperation = (byte, index) => {
         let result = byte;
@@ -100,7 +98,6 @@ const writeSecureStorage = (data) => {
 
 const EXPIRATION_DAYS = 3;
 
-// Anti-Tampering and Debugger Detection
 const detectDebugger = () => {
     const startTime = new Date();
     debugger;
