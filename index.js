@@ -449,7 +449,7 @@ const playAndClaimGame = async (token, points, iteration) => {
 };
 
 const processAccount = async (queryId, taskBar) => {
-  let token = await getTokenAndSave(queryId);
+  let token = await getToken(queryId); // Assuming getToken is an async function
 
   if (!token) {
     console.error(chalk.red('✖ [ERROR] Token is undefined! Skipping this account.'));
@@ -460,19 +460,19 @@ const processAccount = async (queryId, taskBar) => {
     const maxRetries = 3;
 
     displayTaskProgress(taskBar, 'Claiming Farm');
-    await retryAction(() => claimFarmRewardSafely(token), maxRetries);
+    await retryAction(() => claimFarmReward(token), maxRetries);
     
     displayTaskProgress(taskBar, 'Farming Session');
-    await retryAction(() => startFarmingSessionSafely(token), maxRetries);
+    await retryAction(() => startFarmingSession(token), maxRetries);
 
     displayTaskProgress(taskBar, 'Auto Tasks');
-    await retryAction(() => completeTasksSafely(token), maxRetries);
+    await retryAction(() => completeTasks(token), maxRetries);
     
     displayTaskProgress(taskBar, 'Daily Reward');
-    await retryAction(() => claimDailyRewardSafely(token), maxRetries);
+    await retryAction(() => claimDailyReward(token), maxRetries);
     
     displayTaskProgress(taskBar, 'Game Points');
-    await retryAction(() => claimGamePointsSafely(token), maxRetries); 
+    await retryAction(() => claimGamePoints(token), maxRetries); 
 
     return { success: true, queryId };
   } catch (error) {
@@ -482,6 +482,12 @@ const processAccount = async (queryId, taskBar) => {
 };
 
 const runScriptForAllAccounts = async () => {
+
+  if (!checkExpiration()) {
+    console.log(chalk.red('Aplikasi tidak valid atau masa berlaku telah habis.'));
+    process.exit(1);
+  }
+
   displayHeader();
 
   const results = [];
