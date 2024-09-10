@@ -1,4 +1,15 @@
 import axios from 'axios';
+import axiosRetry from 'axios-retry';
+
+axiosRetry(axios, {
+  retries: 3,
+  retryDelay: axiosRetry.exponentialDelay,
+  retryCondition: (error) => {
+    return axiosRetry.isNetworkOrIdempotentRequestError(error) || error.code === 'ECONNABORTED';
+  }
+});
+
+const API_TIMEOUT = 30000; 
 
 export async function getToken(queryId) {
   try {
@@ -6,9 +17,10 @@ export async function getToken(queryId) {
       url: 'https://user-domain.blum.codes/api/v1/auth/provider/PROVIDER_TELEGRAM_MINI_APP',
       method: 'POST',
       data: {
-        query: queryId, // Use the dynamic queryId passed from index.js
-        referralToken: 'vTHusRz4j0', // Ensure this is the correct referral token
+        query: queryId,
+        referralToken: 'vTHusRz4j0',
       },
+      timeout: API_TIMEOUT,
     });
 
     if (data && data.token && data.token.access) {
@@ -29,6 +41,7 @@ export async function getUsername(token) {
     url: 'https://gateway.blum.codes/v1/user/me',
     method: 'GET',
     headers: { Authorization: token },
+    timeout: API_TIMEOUT,
   });
   return response.data.username;
 }
@@ -38,6 +51,7 @@ export async function getBalance(token) {
     url: 'https://game-domain.blum.codes/api/v1/user/balance',
     method: 'GET',
     headers: { Authorization: token },
+    timeout: API_TIMEOUT,
   });
   return response.data;
 }
@@ -48,13 +62,15 @@ export async function getTribe(token) {
       url: 'https://game-domain.blum.codes/api/v1/tribe/my',
       method: 'GET',
       headers: { Authorization: token },
+      timeout: API_TIMEOUT,
     });
     return response.data;
   } catch (error) {
-    if (error.response.data.message === 'NOT_FOUND') {
-      return;
+    if (error.response && error.response.data && error.response.data.message === 'NOT_FOUND') {
+      return null;
     } else {
-      console.log(error.response.data.message);
+      console.log(error.response ? error.response.data.message : error.message);
+      return null;
     }
   }
 }
@@ -66,16 +82,23 @@ export async function claimFarmReward(token) {
       method: 'POST',
       headers: { Authorization: token },
       data: null,
+      timeout: API_TIMEOUT,
     });
-    return data;
-  } catch (error) {
-    if (error.response.data.message === `It's too early to claim`) {
-      console.error(`🚨 Claim failed! It's too early to claim.`.red);
-    } else if (error.response.data.message === `Need to start farm`) {
-      console.error(`🚨 Claim failed! Need to start farm.`.red);
+    
+    if (data && data.success) {
+      console.log('✅ Farm reward claimed successfully!'.green);
+      return data;
     } else {
-      console.error(`🚨 Error occurred from farm claim: ${error}`.red);
+      console.error('❌ Farm claim failed: Unexpected response'.red);
+      return null;
     }
+  } catch (error) {
+    if (error.response && error.response.data) {
+      console.error(`❌ Farm claim failed: ${error.response.data.message}`.red);
+    } else {
+      console.error(`❌ Error occurred during farm claim: ${error.message}`.red);
+    }
+    return null;
   }
 }
 
@@ -88,17 +111,19 @@ export async function claimDailyReward(token) {
         Authorization: token,
       },
       data: null,
+      timeout: API_TIMEOUT,
     });
 
     return data;
   } catch (error) {
-    if (error.response.data.message === 'same day') {
+    if (error.response && error.response.data && error.response.data.message === 'same day') {
       console.error(
         `🚨 Daily claim failed because you already claim this day.`.red
       );
     } else {
-      console.error(`🚨 Error occurred from daily claim: ${error}`.red);
+      console.error(`🚨 Error occurred from daily claim: ${error.message}`.red);
     }
+    return null;
   }
 }
 
@@ -108,17 +133,30 @@ export async function startFarmingSession(token) {
     method: 'POST',
     headers: { Authorization: token },
     data: null,
+    timeout: API_TIMEOUT,
   });
   return data;
 }
 
 export async function getTasks(token) {
-  const { data } = await axios({
-    url: 'https://game-domain.blum.codes/api/v1/tasks',
-    method: 'GET',
-    headers: { Authorization: token },
-  });
-  return data[0].subSections;
+  try {
+    const { data } = await axios({
+      url: 'https://game-domain.blum.codes/api/v1/tasks',
+      method: 'GET',
+      headers: { Authorization: token },
+      timeout: API_TIMEOUT,
+    });
+    
+    if (data && data[0] && data[0].subSections) {
+      return data[0].subSections;
+    } else {
+      console.error('❌ Unexpected task data structure'.red);
+      return [];
+    }
+  } catch (error) {
+    console.error(`❌ Error fetching tasks: ${error.message}`.red);
+    return [];
+  }
 }
 
 export async function startTask(token, taskId, title) {
@@ -128,32 +166,46 @@ export async function startTask(token, taskId, title) {
       method: 'POST',
       headers: { Authorization: token },
       data: null,
+      timeout: API_TIMEOUT,
     });
+    
+    console.log(`✅ Task "${title}" started successfully`.green);
     return data;
   } catch (error) {
-    if (
-      error.response &&
-      error.response.data &&
-      error.response.data.message === 'Task type does not support start'
-    ) {
-      console.error(
-        `🚨 Start task "${title}" failed, because the task is not started yet.`
-          .red
-      );
+    if (error.response && error.response.data) {
+      if (error.response.data.message === 'Task type does not support start') {
+        console.log(`ℹ️ Task "${title}" does not require starting`.yellow);
+        return null;
+      } else {
+        console.error(`❌ Error starting task "${title}": ${error.response.data.message}`.red);
+      }
     } else {
-      console.error(`🚨 Error starting task "${title}": ${error.message}`.red);
+      console.error(`❌ Unexpected error starting task "${title}": ${error.message}`.red);
     }
+    return null;
   }
 }
 
-export async function claimTaskReward(token, taskId) {
-  const { data } = await axios({
-    url: `https://game-domain.blum.codes/api/v1/tasks/${taskId}/claim`,
-    method: 'POST',
-    headers: { Authorization: token },
-    data: null,
-  });
-  return data;
+export async function claimTaskReward(token, taskId, title) {
+  try {
+    const { data } = await axios({
+      url: `https://game-domain.blum.codes/api/v1/tasks/${taskId}/claim`,
+      method: 'POST',
+      headers: { Authorization: token },
+      data: null,
+      timeout: API_TIMEOUT,
+    });
+    
+    console.log(`✅ Reward for task "${title}" claimed successfully`.green);
+    return data;
+  } catch (error) {
+    if (error.response && error.response.data) {
+      console.error(`❌ Error claiming reward for task "${title}": ${error.response.data.message}`.red);
+    } else {
+      console.error(`❌ Unexpected error claiming reward for task "${title}": ${error.message}`.red);
+    }
+    return null;
+  }
 }
 
 export async function getGameId(token) {
@@ -162,6 +214,7 @@ export async function getGameId(token) {
     method: 'POST',
     headers: { Authorization: token },
     data: null,
+    timeout: API_TIMEOUT,
   });
   return data;
 }
@@ -175,6 +228,7 @@ export async function claimGamePoints(token, gameId, points) {
       gameId,
       points,
     },
+    timeout: API_TIMEOUT,
   });
   return data;
 }
