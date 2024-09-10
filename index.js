@@ -16,6 +16,7 @@ import pkg from 'terminal-kit';
 const { terminal: terminalKit } = pkg;
 
 import { delay } from './src/utils.js';
+import Queue from 'queue';
 
 import {
   getToken,
@@ -35,7 +36,7 @@ import {
 const __filename = new URL(import.meta.url).pathname;
 const __dirname = path.dirname(__filename);
 
-const TOKEN_FILE_PATH = 'path/to/bot/directory/accessTokens.txt';
+const TOKEN_FILE_PATH = path.join(__dirname, 'accessTokens.txt');
 
 const accountTokens = [
   process.env.QUERY_ID1,
@@ -43,6 +44,20 @@ const accountTokens = [
   process.env.QUERY_ID3,
   process.env.QUERY_ID4,
   process.env.QUERY_ID5,
+  process.env.QUERY_ID6,
+  process.env.QUERY_ID7,
+  process.env.QUERY_ID8,
+  process.env.QUERY_ID9,
+  process.env.QUERY_ID10,
+  process.env.QUERY_ID11,
+  process.env.QUERY_ID12,
+  process.env.QUERY_ID13,
+  process.env.QUERY_ID14,
+  process.env.QUERY_ID15,
+  process.env.QUERY_ID16,
+  process.env.QUERY_ID17,
+  process.env.QUERY_ID18,
+  process.env.QUERY_ID19,
 ];
 
 const displayHeader = () => {
@@ -150,7 +165,7 @@ const handleApiError = async (error, retryCount = 0) => {
       console.error(`🚨 Error 520: Cloudflare issue detected. Retrying... (${retryCount + 1}/${maxRetries})`.yellow);
       if (retryCount < maxRetries) {
         await delay(5000); 
-        return retryCount + 1;  
+        return retryCount + 1;
       } else {
         console.error(`❌ Gagal setelah ${maxRetries} kali mencoba.`.red);
         return null;
@@ -234,51 +249,52 @@ const startFarmingSessionSafely = async (token) => {
 const completeTasksSafely = async (token) => {
   try {
     console.log('✅ Auto completing tasks...'.yellow);
-    const tasksData = await performActionWithRetry(() => getTasks(token), 3, 10000);
+    const tasksData = await getTasks(token);
 
     if (!Array.isArray(tasksData) || tasksData.length === 0) {
       console.log('⚠️ No tasks available or task data is in unexpected format.'.yellow);
       return;
     }
 
-    const taskPromises = tasksData.flatMap((category) => 
-      category.tasks.map(async (task) => {
-        try {
-          console.log(`Processing task: ${task.title} (Status: ${task.status})`.cyan);
+    const q = new Queue({ concurrency: 2 }); 
 
-          if (task.status === 'FINISHED' || task.status === 'COMPLETED' || 
-              task.title === 'Invite' || task.title === 'Farm') {
-            console.log(`Skipping task: ${task.title} (Status: ${task.status})`.yellow);
-            return;
-          }
+    tasksData.forEach((category) => {
+      category.tasks.forEach((task) => {
+        q.push(async () => {
+          try {
+            console.log(`Processing task: ${task.title} (Status: ${task.status})`.cyan);
 
-          if (task.status === 'NOT_STARTED') {
-            await performActionWithRetry(() => startTask(token, task.id, task.title), 3, 10000);
-            console.log(`Started task: ${task.title}`.green);
-          }
+            if (task.status === 'FINISHED' || task.status === 'COMPLETED' || 
+                task.title === 'Invite' || task.title === 'Farm') {
+              console.log(`Skipping task: ${task.title} (Status: ${task.status})`.yellow);
+              return;
+            }
 
-          const updatedTask = await performActionWithRetry(() => getTaskStatus(token, task.id), 3, 10000);
+            if (task.status === 'NOT_STARTED') {
+              await startTask(token, task.id, task.title);
+              console.log(`Started task: ${task.title}`.green);
+            }
 
-          if (updatedTask.status === 'READY_FOR_CLAIM' || updatedTask.status === 'STARTED') {
-            await performActionWithRetry(() => claimTaskReward(token, task.id), 3, 10000);
-            console.log(`Claimed reward for task: ${task.title}`.green);
-          } else {
-            console.log(`Unable to claim reward for task: ${task.title} (Status: ${updatedTask.status})`.yellow);
-          }
+            const updatedTask = await getTasks(token);
+            const currentTask = updatedTask.find(cat => cat.tasks.find(t => t.id === task.id))?.tasks.find(t => t.id === task.id);
 
-          await delay(2000); 
+            if (currentTask && (currentTask.status === 'READY_FOR_CLAIM' || currentTask.status === 'STARTED')) {
+              await claimTaskReward(token, task.id, task.title);
+              console.log(`Claimed reward for task: ${task.title}`.green);
+            } else {
+              console.log(`Unable to claim reward for task: ${task.title} (Status: ${currentTask ? currentTask.status : 'Unknown'})`.yellow);
+            }
 
-        } catch (error) {
-          if (error.message.includes('timeout')) {
-            console.log(`Timeout occurred while processing task ${task.title}. Skipping.`.yellow);
-          } else {
+            await delay(2000);
+          } catch (error) {
             console.log(`Failed to process task ${task.title}: ${error.message}`.red);
           }
-        }
-      })
-    );
+        });
+      });
+    });
 
-    await Promise.all(taskPromises);
+    q.start();
+    await new Promise((resolve) => q.on('end', resolve));
 
   } catch (error) {
     console.log(`❌ Failed to complete tasks: ${error.message}`.red);
@@ -371,7 +387,7 @@ const claimGamePointsSafely = async (token) => {
       let tasks = [];
       for (let i = 0; i < repetitions; i += batchSize) {
         for (let j = 0; j < batchSize && (i + j) < repetitions; j++) {
-          const randomPoints = Math.floor(Math.random() * (270 - 250 + 1)) + 250;
+          const randomPoints = Math.floor(Math.random() * (270 - 230 + 1)) + 230; 
           console.log(`Iteration ${i + j + 1}: Random points = ${randomPoints}`);
           tasks.push(playAndClaimGameWithRetry(token, randomPoints, i + j + 1));
         }
@@ -381,7 +397,7 @@ const claimGamePointsSafely = async (token) => {
           console.log(`Result of game ${i + index + 1}:`, result);
         });
 
-        await delay(1000);
+        await delay(1000);  
       }
 
       console.log('🏁 All games have been played.'.green);
@@ -392,7 +408,7 @@ const claimGamePointsSafely = async (token) => {
         console.log(`🔄 Server error (520). Retrying in ${retryDelay / 1000} seconds...`.yellow);
         await delay(retryDelay);
       } else {
-        throw error;
+        throw error; 
       }
     }
   }
