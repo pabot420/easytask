@@ -37,11 +37,11 @@ Automates interactions with the Blum airdrop platform, including claiming reward
 
 4. Create a .env file in the root directory of the project and add your environment variables:
 
-   QUERY_ID1=your_query_id_1
-   QUERY_ID2=your_query_id_2
-   QUERY_ID3=your_query_id_3
-   QUERY_ID4=your_query_id_4
-   QUERY_ID5=your_query_id_5
+   QUERY_ID1=your_query_id
+   QUERY_ID2=your_query_id
+   QUERY_ID3=your_query_id
+   QUERY_ID4=your_query_id
+   QUERY_ID5=your_query_id
 
    Usage
 To start the bot, run:
