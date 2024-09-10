@@ -36,7 +36,7 @@ import {
 const __filename = new URL(import.meta.url).pathname;
 const __dirname = path.dirname(__filename);
 
-const TOKEN_FILE_PATH = path.join(__dirname, 'accessTokens.txt');
+const TOKEN_FILE_PATH = './TOKEN/accessTokens.txt';
 
 const accountTokens = [
   process.env.QUERY_ID1,
