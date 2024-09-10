@@ -35,7 +35,7 @@ import {
 const __filename = new URL(import.meta.url).pathname;
 const __dirname = path.dirname(__filename);
 
-const TOKEN_FILE_PATH = './path/to/your/project/directory/accessTokens.txt';
+const TOKEN_FILE_PATH = 'C:/Users/Zahir/Documents/major PLAYA/blum almost fix/accessTokens.txt';
 
 const accountTokens = [
   process.env.QUERY_ID1,
@@ -163,8 +163,8 @@ const handleApiError = async (error, retryCount = 0) => {
     } else if (error.response.status === 520) {
       console.error(`🚨 Error 520: Cloudflare issue detected. Retrying... (${retryCount + 1}/${maxRetries})`.yellow);
       if (retryCount < maxRetries) {
-        await delay(5000);  // Jeda 5 detik sebelum mencoba ulang
-        return retryCount + 1;  // Tambahkan retry counter
+        await delay(5000); 
+        return retryCount + 1;  
       } else {
         console.error(`❌ Gagal setelah ${maxRetries} kali mencoba.`.red);
         return null;
@@ -179,18 +179,27 @@ const handleApiError = async (error, retryCount = 0) => {
   return null;
 };
 
-const performActionWithRetry = async (action, token, maxRetries = 3) => {
+const performActionWithRetry = async (action, maxRetries = 3, timeout = 10000) => {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      return await action(token);  // Pass token to action
+      return await Promise.race([
+        action(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), timeout)
+        )
+      ]);
     } catch (error) {
-      if (error.response && error.response.status === 401) {
+      if (error.message === 'Timeout' || error.code === 'ECONNABORTED') {
+        console.log(`Timeout occurred. Retrying... (${i + 1}/${maxRetries})`.yellow);
+      } else if (error.response && error.response.status === 401) {
         console.error('🚨 Token expired or unauthorized. Please check your token.'.red);
-        break;  // Stop retrying if token is unauthorized
+        break;
+      } else {
+        console.log(`Error: ${error.message}. Retrying... (${i + 1}/${maxRetries})`.red);
       }
-      if (i === maxRetries - 1) throw error;  // If max retries reached, throw error
-      console.log(`Retrying... (${i + 1}/${maxRetries})`.yellow);
-      await delay(5000);  // Tambahkan delay antar percobaan
+      
+      if (i === maxRetries - 1) throw error;
+      await delay(5000);
     }
   }
 };
@@ -201,8 +210,8 @@ const retryAction = async (action, maxRetries = 3) => {
       return await action();
     } catch (error) {
       console.log(`❌ Error: ${error.message} (Retry ${i + 1}/${maxRetries})`.yellow);
-      if (i === maxRetries - 1) throw error; // Stop retrying if max retries reached
-      await delay(3000); // Delay between retries
+      if (i === maxRetries - 1) throw error; 
+      await delay(3000); 
     }
   }
 };
@@ -221,11 +230,16 @@ const startFarmingSessionSafely = async (token) => {
   try {
     console.log('🚜 Starting farming session...'.yellow);
     const farmingSession = await performActionWithRetry(startFarmingSession, token);
-    const farmStartTime = moment(farmingSession.startTime).format('MMMM Do YYYY, h:mm:ss A');
-    const farmEndTime = moment(farmingSession.endTime).format('MMMM Do YYYY, h:mm:ss A');
-    console.log(`✅ Farming session started!`.green);
-    console.log(`⏰ Start time: ${farmStartTime}`);
-    console.log(`⏳ End time: ${farmEndTime}`);
+    
+    if (farmingSession && farmingSession.startTime && farmingSession.endTime) {
+      const farmStartTime = moment(farmingSession.startTime).format('MMMM Do YYYY, h:mm:ss A');
+      const farmEndTime = moment(farmingSession.endTime).format('MMMM Do YYYY, h:mm:ss A');
+      console.log(`✅ Farming session started!`.green);
+      console.log(`⏰ Start time: ${farmStartTime}`);
+      console.log(`⏳ End time: ${farmEndTime}`);
+    } else {
+      console.log(`⚠️ Farming session started, but time details are unavailable.`.yellow);
+    }
   } catch (error) {
     console.log(`❌ Failed to start farming session: ${error.message}`.red);
   }
@@ -234,36 +248,52 @@ const startFarmingSessionSafely = async (token) => {
 const completeTasksSafely = async (token) => {
   try {
     console.log('✅ Auto completing tasks...'.yellow);
-    const tasksData = await performActionWithRetry(getTasks, token);
-    for (const category of tasksData) {
-      for (const task of category.tasks) {
+    const tasksData = await performActionWithRetry(() => getTasks(token), 3, 10000);
+
+    if (!Array.isArray(tasksData) || tasksData.length === 0) {
+      console.log('⚠️ No tasks available or task data is in unexpected format.'.yellow);
+      return;
+    }
+
+    const taskPromises = tasksData.flatMap((category) => 
+      category.tasks.map(async (task) => {
         try {
           console.log(`Processing task: ${task.title} (Status: ${task.status})`.cyan);
-          
-          if (task.status === 'NOT_STARTED') {
-            await performActionWithRetry(() => startTask(token, task.id, task.title));
-            console.log(`Started task: ${task.title}`.green);
-            // delay
-            await delay(2000);
+
+          if (task.status === 'FINISHED' || task.status === 'COMPLETED' || 
+              task.title === 'Invite' || task.title === 'Farm') {
+            console.log(`Skipping task: ${task.title} (Status: ${task.status})`.yellow);
+            return;
           }
-          
-          const updatedTask = await performActionWithRetry(() => getTaskStatus(token, task.id));
-          
-          if (updatedTask.status === 'STARTED' || updatedTask.status === 'READY_FOR_CLAIM') {
-            await performActionWithRetry(() => claimTaskReward(token, task.id));
+
+          if (task.status === 'NOT_STARTED') {
+            await performActionWithRetry(() => startTask(token, task.id, task.title), 3, 10000);
+            console.log(`Started task: ${task.title}`.green);
+          }
+
+          const updatedTask = await performActionWithRetry(() => getTaskStatus(token, task.id), 3, 10000);
+
+          if (updatedTask.status === 'READY_FOR_CLAIM' || updatedTask.status === 'STARTED') {
+            await performActionWithRetry(() => claimTaskReward(token, task.id), 3, 10000);
             console.log(`Claimed reward for task: ${task.title}`.green);
-          } else if (updatedTask.status === 'COMPLETED') {
-            console.log(`Task already completed: ${task.title}`.yellow);
           } else {
             console.log(`Unable to claim reward for task: ${task.title} (Status: ${updatedTask.status})`.yellow);
           }
-          
-          await delay(3000);
+
+          await delay(2000); 
+
         } catch (error) {
-          console.log(`Failed to process task ${task.title}: ${error.message}`.red);
+          if (error.message.includes('timeout')) {
+            console.log(`Timeout occurred while processing task ${task.title}. Skipping.`.yellow);
+          } else {
+            console.log(`Failed to process task ${task.title}: ${error.message}`.red);
+          }
         }
-      }
-    }
+      })
+    );
+
+    await Promise.all(taskPromises);
+
   } catch (error) {
     console.log(`❌ Failed to complete tasks: ${error.message}`.red);
   }
@@ -271,7 +301,8 @@ const completeTasksSafely = async (token) => {
 
 const getTaskStatus = async (token, taskId) => {
   const response = await axios.get(`https://api-domain.blum.codes/api/v1/tasks/${taskId}`, {
-    headers: { Authorization: token }
+    headers: { Authorization: token },
+    timeout: 10000, 
   });
   return response.data;
 };
@@ -286,59 +317,101 @@ const claimDailyRewardSafely = async (token) => {
   }
 };
 
-const playAndClaimGame = async (token, points, iteration) => {
-  console.log(`🆔 Starting game ${iteration}...`.cyan);
+const playAndClaimGameWithRetry = async (token, points, iteration, maxRetries = 4) => {
+  let attempt = 0;
+  let retryDelay = 2000;
 
-  try {
-    let playResponse = await axios.post('https://game-domain.blum.codes/api/v1/game/play', null, {
-      headers: { Authorization: token, 'Content-Type': 'application/json' },
-    });
+  while (attempt < maxRetries) {
+    try {
+      console.log(`🆔 Starting game ${iteration}...`.cyan);
 
-    let gameId = playResponse.data.gameId;
-    console.log(`Game ID: ${gameId} (Iteration ${iteration})`.cyan);
+      let playResponse = await axios.post('https://game-domain.blum.codes/api/v1/game/play', null, {
+        headers: { Authorization: token, 'Content-Type': 'application/json' },
+        timeout: 15000, 
+      });
 
-    console.log(`⏳ Waiting for 32 seconds... (Iteration ${iteration})`.yellow);
-    await delay(32000);
+      let gameId = playResponse.data.gameId;
+      console.log(`Game ID: ${gameId} (Iteration ${iteration})`.cyan);
 
-    let claimResponse = await axios.post(
-      'https://game-domain.blum.codes/api/v1/game/claim',
-      { gameId, points },
-      { headers: { Authorization: token, 'Content-Type': 'application/json' } }
-    );
+      console.log(`⏳ Waiting for 32 seconds... (Iteration ${iteration})`.yellow);
+      await delay(32000);
 
-    console.log(`✅ Successfully claimed ${points} points (Iteration ${iteration})`.green);
-    return 'OK';
-  } catch (error) {
-    console.log(`❌ Failed to claim points for game ${iteration}: ${error.message}`.red);
-    throw error;
+      let claimResponse = await axios.post(
+        'https://game-domain.blum.codes/api/v1/game/claim',
+        { gameId, points },
+        { 
+          headers: { Authorization: token, 'Content-Type': 'application/json' },
+          timeout: 15000, 
+        }
+      );
+
+      console.log(`✅ Successfully claimed ${points} points (Iteration ${iteration})`.green);
+      return 'OK';
+    } catch (error) {
+      console.log(`❌ Failed to claim points for game ${iteration}: ${error.message}`.red);
+      attempt++;
+
+      if (error.response && error.response.status === 520) {
+        console.log(`🔄 Server error (520). Retrying in ${retryDelay / 1000} seconds... (Attempt ${attempt}/${maxRetries})`.yellow);
+      } else if (attempt < maxRetries) {
+        console.log(`Retrying in ${retryDelay / 1000} seconds... (Attempt ${attempt}/${maxRetries})`.yellow);
+      } else {
+        console.log(`❌ Failed after ${maxRetries} attempts. Moving to next task.`.red);
+        throw error;
+      }
+
+      await delay(retryDelay);
+      retryDelay *= 2; 
+    }
   }
 };
 
 const claimGamePointsSafely = async (token) => {
   console.log('🎮 Starting game points claiming...'.cyan);
 
-  try {
-    const balanceResponse = await getBalance(token); // Get the balance to determine the available game chances
-    const gameChances = balanceResponse.playPasses;
-    console.log(`📊 You have ${gameChances} game chances available.`.cyan);
+  const maxRetries = 3;
+  const retryDelay = 5000; 
 
-    let tasks = [];
-    for (let i = 0; i < gameChances; i++) {
-      const randomPoints = Math.floor(Math.random() * (275 - 150 + 1)) + 150; // Random points between 150 and 275
-      tasks.push(playAndClaimGame(token, randomPoints, i + 1));
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const balanceResponse = await getBalance(token);
+      const gameChances = balanceResponse.playPasses;
+      console.log(`📊 You have ${gameChances} game chances available.`.cyan);
+
+      const repetitions = gameChances;
+
+      const batchSize = 3;
+
+      let tasks = [];
+      for (let i = 0; i < repetitions; i += batchSize) {
+        for (let j = 0; j < batchSize && (i + j) < repetitions; j++) {
+          const randomPoints = Math.floor(Math.random() * (270 - 250 + 1)) + 250;
+          console.log(`Iteration ${i + j + 1}: Random points = ${randomPoints}`);
+          tasks.push(playAndClaimGameWithRetry(token, randomPoints, i + j + 1));
+        }
+
+        let results = await Promise.all(tasks);  
+        results.forEach((result, index) => {
+          console.log(`Result of game ${i + index + 1}:`, result);
+        });
+
+        await delay(1000);
+      }
+
+      console.log('🏁 All games have been played.'.green);
+      return; 
+    } catch (error) {
+      console.log(`❌ Attempt ${attempt + 1}/${maxRetries} failed: ${error.message}`.red);
+      if (error.response && error.response.status === 520) {
+        console.log(`🔄 Server error (520). Retrying in ${retryDelay / 1000} seconds...`.yellow);
+        await delay(retryDelay);
+      } else {
+        throw error;
+      }
     }
-
-    let results = await Promise.all(tasks); // Wait for all games to complete
-
-    // Display results
-    results.forEach((result, index) => {
-      console.log(`Result of game ${index + 1}:`, result);
-    });
-
-    console.log('🏁 All games have been played.'.green);
-  } catch (error) {
-    console.log(`❌ Failed to process game points claiming: ${error.message}`.red);
   }
+
+  console.log(`❌ Failed to process game points claiming after ${maxRetries} attempts.`.red);
 };
 
 const processAccount = async (queryId, taskBar) => {
@@ -346,29 +419,38 @@ const processAccount = async (queryId, taskBar) => {
 
   if (!token) {
     console.error(chalk.red('✖ [ERROR] Token is undefined! Skipping this account.'));
-    return;
+    return { success: false, queryId, error: 'Token undefined' };
   }
 
   try {
+    console.log(chalk.cyan(`\n🔄 Processing account with queryId: ${queryId}`));
+
     displayTaskProgress(taskBar, 'Claiming Farm');
     await claimFarmRewardSafely(token);
+    console.log(chalk.green('✅ Farm claim process completed'));
     
     displayTaskProgress(taskBar, 'Farming Session');
     await startFarmingSessionSafely(token);
+    console.log(chalk.green('✅ Farming session process completed'));
 
     displayTaskProgress(taskBar, 'Auto Tasks');
     await completeTasksSafely(token);
+    console.log(chalk.green('✅ Auto tasks process completed'));
     
     displayTaskProgress(taskBar, 'Daily Reward');
     await claimDailyRewardSafely(token);
+    console.log(chalk.green('✅ Daily reward process completed'));
     
     displayTaskProgress(taskBar, 'Game Points');
     await claimGamePointsSafely(token);
+    console.log(chalk.green('✅ Game points process completed'));
+
+    console.log(chalk.green(`✅ All processes completed for account with queryId: ${queryId}`));
 
     await delay(10000); 
     return { success: true, queryId };
   } catch (error) {
-    console.error(chalk.red(`✖ [FAILURE] Error occurred for token: ${token} - ${error.message}`));
+    console.error(chalk.red(`✖ [FAILURE] Error occurred for queryId: ${queryId} - ${error.message}`));
     return { success: false, queryId, error: error.message };
   }
 };
