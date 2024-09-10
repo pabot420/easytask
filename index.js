@@ -35,7 +35,7 @@ import {
 const __filename = new URL(import.meta.url).pathname;
 const __dirname = path.dirname(__filename);
 
-const TOKEN_FILE_PATH = 'C:/Users/Zahir/Documents/major PLAYA/blum almost fix/accessTokens.txt';
+const TOKEN_FILE_PATH = 'path/to/bot/directory/accessTokens.txt';
 
 const accountTokens = [
   process.env.QUERY_ID1,
