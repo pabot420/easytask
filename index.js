@@ -44,6 +44,20 @@ const accountTokens = [
   process.env.QUERY_ID3,
   process.env.QUERY_ID4,
   process.env.QUERY_ID5,
+  process.env.QUERY_ID6,
+  process.env.QUERY_ID7,
+  process.env.QUERY_ID8,
+  process.env.QUERY_ID9,
+  process.env.QUERY_ID10,
+  process.env.QUERY_ID11,
+  process.env.QUERY_ID12,
+  process.env.QUERY_ID13,
+  process.env.QUERY_ID14,
+  process.env.QUERY_ID15,
+  process.env.QUERY_ID16,
+  process.env.QUERY_ID17,
+  process.env.QUERY_ID18,
+  process.env.QUERY_ID19,
 ];
 
 const displayHeader = () => {
@@ -205,30 +219,39 @@ const retryAction = async (action, maxRetries = 3) => {
 
 const claimFarmRewardSafely = async (token) => {
   try {
-    console.log('🌾 Claiming farm reward...'.yellow);
-    await performActionWithRetry(claimFarmReward, token);
-    console.log('✅ Farm reward claimed successfully!'.green);
+    console.log('🌾 Attempting to claim farm reward...'.yellow);
+    const result = await performActionWithRetry(() => claimFarmReward(token));
+    if (result) {
+      console.log('✅ Farm reward claimed successfully!'.green);
+    } else {
+      console.log('⚠️ Farm reward claim returned no result.'.yellow);
+    }
   } catch (error) {
     console.log(`❌ Failed to claim farm reward: ${error.message}`.red);
+    if (error.response) {
+      console.log(`Response status: ${error.response.status}`.red);
+      console.log(`Response data: ${JSON.stringify(error.response.data)}`.red);
+    }
   }
 };
 
 const startFarmingSessionSafely = async (token) => {
   try {
-    console.log('🚜 Starting farming session...'.yellow);
-    const farmingSession = await performActionWithRetry(startFarmingSession, token);
+    console.log('🚜 Attempting to start farming session...'.yellow);
+    const farmingSession = await performActionWithRetry(() => startFarmingSession(token));
     
-    if (farmingSession && farmingSession.startTime && farmingSession.endTime) {
-      const farmStartTime = moment(farmingSession.startTime).format('MMMM Do YYYY, h:mm:ss A');
-      const farmEndTime = moment(farmingSession.endTime).format('MMMM Do YYYY, h:mm:ss A');
+    if (farmingSession) {
       console.log(`✅ Farming session started!`.green);
-      console.log(`⏰ Start time: ${farmStartTime}`);
-      console.log(`⏳ End time: ${farmEndTime}`);
+      console.log(`Session details: ${JSON.stringify(farmingSession)}`.cyan);
     } else {
-      console.log(`⚠️ Farming session started, but time details are unavailable.`.yellow);
+      console.log(`⚠️ Farming session start returned no result.`.yellow);
     }
   } catch (error) {
     console.log(`❌ Failed to start farming session: ${error.message}`.red);
+    if (error.response) {
+      console.log(`Response status: ${error.response.status}`.red);
+      console.log(`Response data: ${JSON.stringify(error.response.data)}`.red);
+    }
   }
 };
 
@@ -251,7 +274,7 @@ const completeTasksSafely = async (token) => {
             console.log(`Processing task: ${task.title} (Status: ${task.status})`.cyan);
 
             if (task.status === 'FINISHED' || task.status === 'COMPLETED' || 
-                task.title === 'Invite' || task.title === 'Farm') {
+                task.title === 'Invite' /* || task.title === 'Farm' */) {
               console.log(`Skipping task: ${task.title} (Status: ${task.status})`.yellow);
               return;
             }
@@ -297,11 +320,20 @@ const getTaskStatus = async (token, taskId) => {
 
 const claimDailyRewardSafely = async (token) => {
   try {
-    console.log('✨ Claiming daily reward...'.yellow);
-    await performActionWithRetry(claimDailyReward, token);
-    console.log('✅ Daily reward claimed successfully!'.green);
+    console.log('✨ Attempting to claim daily reward...'.yellow);
+    const result = await performActionWithRetry(() => claimDailyReward(token));
+    if (result) {
+      console.log('✅ Daily reward claimed successfully!'.green);
+      console.log(`Reward details: ${JSON.stringify(result)}`.cyan);
+    } else {
+      console.log('⚠️ Daily reward claim returned no result.'.yellow);
+    }
   } catch (error) {
     console.log(`❌ Failed to claim daily reward: ${error.message}`.red);
+    if (error.response) {
+      console.log(`Response status: ${error.response.status}`.red);
+      console.log(`Response data: ${JSON.stringify(error.response.data)}`.red);
+    }
   }
 };
 
@@ -420,6 +452,10 @@ const processAccount = async (queryId, taskBar) => {
     displayTaskProgress(taskBar, 'Farming Session');
     await startFarmingSessionSafely(token);
     console.log(chalk.green('✅ Farming session process completed'));
+	
+	displayTaskProgress(taskBar, 'Daily Reward');
+	await claimDailyRewardSafely(token);
+	await claimDailyRewardSafely(token);
 
     displayTaskProgress(taskBar, 'Auto Tasks');
     await completeTasksSafely(token);
