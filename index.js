@@ -44,20 +44,6 @@ const accountTokens = [
   process.env.QUERY_ID3,
   process.env.QUERY_ID4,
   process.env.QUERY_ID5,
-  process.env.QUERY_ID6,
-  process.env.QUERY_ID7,
-  process.env.QUERY_ID8,
-  process.env.QUERY_ID9,
-  process.env.QUERY_ID10,
-  process.env.QUERY_ID11,
-  process.env.QUERY_ID12,
-  process.env.QUERY_ID13,
-  process.env.QUERY_ID14,
-  process.env.QUERY_ID15,
-  process.env.QUERY_ID16,
-  process.env.QUERY_ID17,
-  process.env.QUERY_ID18,
-  process.env.QUERY_ID19,
 ];
 
 const displayHeader = () => {
