@@ -77,6 +77,7 @@ export async function getTribe(token) {
 
 export async function claimFarmReward(token) {
   try {
+    console.log('Sending farm reward claim request...'.cyan);
     const { data } = await axios({
       url: 'https://game-domain.blum.codes/api/v1/farming/claim',
       method: 'POST',
@@ -84,6 +85,8 @@ export async function claimFarmReward(token) {
       data: null,
       timeout: API_TIMEOUT,
     });
+    
+    console.log(`Farm claim response: ${JSON.stringify(data)}`.cyan);
     
     if (data && data.success) {
       console.log('✅ Farm reward claimed successfully!'.green);
@@ -95,15 +98,17 @@ export async function claimFarmReward(token) {
   } catch (error) {
     if (error.response && error.response.data) {
       console.error(`❌ Farm claim failed: ${error.response.data.message}`.red);
+      console.error(`Full error response: ${JSON.stringify(error.response.data)}`.red);
     } else {
       console.error(`❌ Error occurred during farm claim: ${error.message}`.red);
     }
-    return null;
+    throw error; // Throw the error object
   }
 }
 
 export async function claimDailyReward(token) {
   try {
+    console.log('Sending daily reward claim request...'.cyan);
     const { data } = await axios({
       url: 'https://game-domain.blum.codes/api/v1/daily-reward?offset=-420',
       method: 'POST',
@@ -114,16 +119,20 @@ export async function claimDailyReward(token) {
       timeout: API_TIMEOUT,
     });
 
+    console.log(`Daily reward claim response: ${JSON.stringify(data)}`.cyan);
     return data;
   } catch (error) {
-    if (error.response && error.response.data && error.response.data.message === 'same day') {
-      console.error(
-        `🚨 Daily claim failed because you already claim this day.`.red
-      );
+    if (error.response && error.response.data) {
+      if (error.response.data.message === 'same day') {
+        console.log(`⚠️ Daily claim failed: You have already claimed today's reward.`.yellow);
+      } else {
+        console.error(`❌ Daily claim failed: ${error.response.data.message}`.red);
+      }
+      console.error(`Full error response: ${JSON.stringify(error.response.data)}`.red);
     } else {
-      console.error(`🚨 Error occurred from daily claim: ${error.message}`.red);
+      console.error(`❌ Error occurred during daily claim: ${error.message}`.red);
     }
-    return null;
+    throw error; // Throw the error object
   }
 }
 
