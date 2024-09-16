@@ -1,5 +1,5 @@
 
-# Blum Airdrop Bot
+# Blum Easy Task Bot
 
 Automates interactions with the Blum airdrop platform, including claiming rewards, managing farming sessions, completing tasks, and playing games.
 
@@ -36,14 +36,22 @@ Automates interactions with the Blum airdrop platform, including claiming reward
 4. Create a .env file in the root directory of the project and add your environment variables:
 
    QUERY_ID1=your_query_id
+   
    QUERY_ID2=your_query_id
-   QUERY_ID3=your_query_id
-   QUERY_ID4=your_query_id
-   QUERY_ID5=your_query_id
+   
+   visa versa
 
+   Edit .env file in the project root and add your Blum query IDs, one per line.
+   
+   Keep your .env file secure and never share your query IDs !!
+   
+   Use this bot responsibly and in accordance with Blum's terms of service.
+   
+   
    Usage
 To start the bot, run:
-npm start/node index.js
+npm start  /  node index.js
 
-# easytask
+Disclaimer: This bot is for educational purposes only. Use at your own risk. The developers are not responsible for any consequences resulting from the use of this bot.
+
 # easytask
