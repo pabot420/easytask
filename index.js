@@ -39,11 +39,27 @@ const __dirname = path.dirname(__filename);
 const TOKEN_FILE_PATH = './TOKEN/accessTokens.txt';
 
 const accountTokens = [
-  process.env.QUERY_ID1,
-  process.env.QUERY_ID2,
-  process.env.QUERY_ID3,
-  process.env.QUERY_ID4,
-  process.env.QUERY_ID5,
+ process.env.QUERY_ID1,
+ process.env.QUERY_ID2,
+ process.env.QUERY_ID3,
+ process.env.QUERY_ID4,
+ process.env.QUERY_ID5,
+ process.env.QUERY_ID6,
+ process.env.QUERY_ID7,
+ process.env.QUERY_ID8,
+ process.env.QUERY_ID9,
+ process.env.QUERY_ID10,
+ process.env.QUERY_ID11,
+ process.env.QUERY_ID12,
+ process.env.QUERY_ID13,
+ process.env.QUERY_ID14,
+ process.env.QUERY_ID15,
+ process.env.QUERY_ID16,
+ process.env.QUERY_ID17,
+ process.env.QUERY_ID18,
+ process.env.QUERY_ID19,
+ process.env.QUERY_ID20,
+ process.env.QUERY_ID21,
 ];
 
 const displayHeader = () => {

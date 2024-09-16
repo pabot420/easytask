@@ -23,11 +23,11 @@ Automates interactions with the Blum airdrop platform, including claiming reward
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/ada682/blumAllinone.git
+   git clone https://github.com/pabot420/easytask.git
 
 2. Navigate to the project directory:
 
-   cd blumAllinone
+   cd easytask
 
 3. Install dependencies:
 
