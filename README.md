@@ -45,3 +45,4 @@ Automates interactions with the Blum airdrop platform, including claiming reward
 To start the bot, run:
 npm start/node index.js
 
+# easytask
